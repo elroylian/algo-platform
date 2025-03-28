@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>YOLOE Prompt Detection</title>
+  <style>
+    video, canvas, img {
+      width: 480px;
+      height: 360px;
+      border: 1px solid #ccc;
+      margin: 10px;
+    }
+    textarea, input[type="text"] {
+      width: 400px;
+    }
+  </style>
+</head>
+<body>
+  <h2>👀 Select Detection Mode (Refresh after selecting a new Mode)</h2>
+  <label>
+    Mode:
+    <select id="modeSelector">
+      <option value="visual">Visual Prompt</option>
+      <option value="text">Text Prompt</option>
+    </select>
+  </label>
+
+  <form id="promptForm">
+    <div id="visualInputs">
+      <h3>1️⃣ Upload Visual Prompt</h3>
+      <label>Source Image:
+        <input type="file" id="sourceImageInput" accept="image/*" />
+      </label><br/><br/>
+      <label>Bounding Boxes (JSON array):<br/>
+        <textarea id="bboxesInput" rows="3">
+[[253, 272, 398, 457], [472, 130, 546, 447]]
+        </textarea>
+      </label><br/><br/>
+    </div>
+
+    <h3>📝 Classes</h3>
+    <input type="text" id="classesInput" value='["chair", "orb"]' />
+
+    <br/><br/>
+    <button type="submit">Set Prompt & Start Streaming</button>
+  </form>
+
+  <h2>🎥 Live Detection</h2>
+  <video id="video" autoplay></video>
+  <canvas id="canvas" hidden></canvas>
+  <img id="result" alt="Processed frame" />
+
+  <script>
+    const modeSelector = document.getElementById("modeSelector");
+    const visualInputs = document.getElementById("visualInputs");
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const result = document.getElementById("result");
+    const ctx = canvas.getContext("2d");
+    const promptForm = document.getElementById("promptForm");
+
+    let modelReady = false;
+    let currentMode = "visual";
+
+    modeSelector.addEventListener("change", () => {
+      currentMode = modeSelector.value;
+      visualInputs.style.display = currentMode === "visual" ? "block" : "none";
+    });
+
+    promptForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const classes = document.getElementById("classesInput").value;
+
+      if (currentMode === "visual") {
+        const sourceImageInput = document.getElementById("sourceImageInput");
+        const bboxes = document.getElementById("bboxesInput").value;
+
+        if (!sourceImageInput.files[0]) {
+          alert("Please select a source image.");
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("source_image", sourceImageInput.files[0]);
+        formData.append("bboxes", bboxes);
+        formData.append("classes", classes);
+
+        const res = await fetch("http://localhost:5000/set-prompt", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await res.json();
+        if (data.message) {
+          modelReady = true;
+          startWebcamStreaming();
+        } else {
+          alert("Error setting visual prompt: " + data.error);
+        }
+      } else {
+        const res = await fetch("http://localhost:5000/set-text-prompt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ classes: JSON.parse(classes) })
+        });
+
+        const data = await res.json();
+        if (data.message) {
+          modelReady = true;
+          startWebcamStreaming();
+        } else {
+          alert("Error setting text prompt: " + data.error);
+        }
+      }
+    });
+
+    function startWebcamStreaming() {
+      navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+        video.srcObject = stream;
+        video.addEventListener("loadeddata", () => {
+          sendFrame();
+        });
+      }).catch(err => {
+        console.error("Webcam error:", err);
+      });
+    }
+
+    async function sendFrame() {
+      if (!modelReady) return;
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const dataUrl = canvas.toDataURL("image/jpeg");
+      const base64 = dataUrl.split(',')[1];
+
+      const endpoint = currentMode === "visual"
+        ? "http://localhost:5000/stream-frame"
+        : "http://localhost:5000/stream-frame-text";
+
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image_base64: base64 })
+        });
+
+        const data = await res.json();
+        if (data.image_base64) {
+          result.src = "data:image/jpeg;base64," + data.image_base64;
+        }
+      } catch (err) {
+        console.error("Error streaming frame:", err);
+      }
+
+      setTimeout(sendFrame, 33); // ~30 FPS
+    }
+  </script>
+</body>
+</html>
