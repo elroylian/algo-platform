@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🎙️ Audio Translation Frontend</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 2rem;
+      max-width: 600px;
+      margin: auto;
+    }
+    button, select, textarea, audio {
+      width: 100%;
+      margin: 10px 0;
+      padding: 0.6rem;
+    }
+    textarea {
+      height: 80px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎤 Speech Translation Assistant</h1>
+
+  <h2>1️⃣ Speech to Text (English)</h2>
+  <button id="recordBtn">🎙 Start Recording</button>
+  <audio id="recordedAudio" controls></audio>
+  <button id="sendAudio">Transcribe</button>
+  <textarea id="outputText" placeholder="Transcribed English text..."></textarea>
+
+  <h2>2️⃣ Text to Speech (English)</h2>
+  <textarea id="ttsInput" placeholder="Enter English text..."></textarea>
+  <button id="ttsBtn">Convert to Speech</button>
+  <audio id="ttsAudio" controls></audio>
+
+  <h2>3️⃣ Translate Chinese Text → English Text</h2>
+  <textarea id="zhText" placeholder="Enter Chinese text..."></textarea>
+  <button id="zhToEnBtn">Translate</button>
+  <textarea id="translatedEnText" placeholder="Translation output..."></textarea>
+
+  <h2>4️⃣ Translate English Speech → Chinese Speech</h2>
+  <button id="recordTransBtn">🎙 Record English</button>
+  <audio id="recordedTransAudio" controls></audio>
+  <button id="translateSpeechBtn">Translate and Speak</button>
+  <audio id="translatedSpeechAudio" controls></audio>
+
+  <script>
+    let mediaRecorder, audioChunks = [], recordedBlob = null;
+    let transRecorder, transChunks = [], transBlob = null;
+
+    // 🎙 Speech to Text Recording
+    document.getElementById("recordBtn").onclick = async () => {
+      if (!mediaRecorder || mediaRecorder.state === "inactive") {
+        audioChunks = [];
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          recordedBlob = new Blob(audioChunks, { type: "audio/webm" });
+          document.getElementById("recordedAudio").src = URL.createObjectURL(recordedBlob);
+        };
+        mediaRecorder.start();
+        recordBtn.innerText = "⏹ Stop Recording";
+      } else {
+        mediaRecorder.stop();
+        recordBtn.innerText = "🎙 Start Recording";
+      }
+    };
+
+    // 📤 Send for English Transcription
+    document.getElementById("sendAudio").onclick = async () => {
+      if (!recordedBlob) return alert("Please record audio first.");
+      const formData = new FormData();
+      formData.append("audio", recordedBlob, "recording.webm");
+
+      const res = await fetch("http://localhost:5050/speech-to-text-en", { method: "POST", body: formData });
+      const data = await res.json();
+      document.getElementById("outputText").value = data.text || data.error || "(No response)";
+    };
+
+    // 🔊 Text to Speech (English)
+    document.getElementById("ttsBtn").onclick = async () => {
+      const text = document.getElementById("ttsInput").value;
+      if (!text) return alert("Enter some English text.");
+
+      const res = await fetch("http://localhost:5050/text-to-speech", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, lang: "en" }),
+      });
+      const blob = await res.blob();
+      const audio = document.getElementById("ttsAudio");
+      audio.src = URL.createObjectURL(blob);
+      audio.play();
+    };
+
+    // 🌐 Chinese Text → English Text
+    document.getElementById("zhToEnBtn").onclick = async () => {
+      const zhText = document.getElementById("zhText").value;
+      if (!zhText) return alert("Enter Chinese text.");
+
+      const res = await fetch("http://localhost:5050/translate-zh-to-en", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: zhText }),
+      });
+      const data = await res.json();
+      document.getElementById("translatedEnText").value = data.text || data.error || "(No response)";
+    };
+
+    // 🎙 Record for EN Speech → ZH Speech
+    document.getElementById("recordTransBtn").onclick = async () => {
+      if (!transRecorder || transRecorder.state === "inactive") {
+        transChunks = [];
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        transRecorder = new MediaRecorder(stream);
+        transRecorder.ondataavailable = (e) => transChunks.push(e.data);
+        transRecorder.onstop = () => {
+          transBlob = new Blob(transChunks, { type: "audio/webm" });
+          document.getElementById("recordedTransAudio").src = URL.createObjectURL(transBlob);
+        };
+        transRecorder.start();
+        recordTransBtn.innerText = "⏹ Stop Recording";
+      } else {
+        transRecorder.stop();
+        recordTransBtn.innerText = "🎙 Record English";
+      }
+    };
+
+    // 🔁 EN Speech → Chinese TTS
+    document.getElementById("translateSpeechBtn").onclick = async () => {
+      if (!transBlob) return alert("Please record English audio first.");
+      const formData = new FormData();
+      formData.append("audio", transBlob, "speech.webm");
+
+      const res = await fetch("http://localhost:5050/speech-en-to-zh", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!data.text) return alert("Translation failed.");
+
+      // Ensure your backend returns the translated text before requesting TTS
+      const ttsRes = await fetch("http://localhost:5050/text-to-speech", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: data.text, lang: "zh-CN" }),
+      });
+      const ttsBlob = await ttsRes.blob();
+      const audio = document.getElementById("translatedSpeechAudio");
+      audio.src = URL.createObjectURL(ttsBlob);
+      audio.play();
+    };
+  </script>
+</body>
+</html>
