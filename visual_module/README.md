@@ -1,6 +1,7 @@
-# 🖼️ Visual Prompt Detection API (YOLOE)
+# 🖼️ Visual Prompt Detection API (YOLOE & YOLO detection)
 
-This module uses **Ultralytics YOLOE** with **visual and text prompts** to perform real-time object detection via webcam or uploaded frames. It supports both prompt-based detection modes via a Flask API.
+This project uses **Ultralytics YOLOE** with **visual and text prompts** to perform real-time object detection via webcam or uploaded frames. It supports both prompt-based and text-based detection modes via a Flask API. This project also uses **Ultralytics YOLO** to perform real-time object detection via webcam or uploaded frames.
+
 
 ---
 
@@ -23,11 +24,18 @@ pip install -r requirements.txt
 wget https://docs-assets.developer.apple.com/ml-research/datasets/mobileclip/mobileclip_blt.pt
 
 # Visual API dependencies
-pip install flask flask-cors opencv-python ultralytics numpy
+pip install flask flask-cors opencv-python ultralytics numpy pycuda
 ```
 
 > ⚠️ PyTorch is also required.  
 > Visit https://pytorch.org/get-started/locally/ and install based on your OS and environment.
+
+---
+
+## Exporting YOLO model to TensorRT 
+- TensorRT -> 10.0.0b6
+- Python -> 3.10.16
+- Use export.py provided in the codespace
 
 ---
 
@@ -43,7 +51,8 @@ Then open your browser at:
 
 Models tested:
 - [YOLOe-v8-S](https://huggingface.co/jameslahm/yoloe/blob/main/yoloe-v8s-seg.pt)
-- [YOLO-v11-S](https://huggingface.co/jameslahm/yoloe/blob/main/yoloe-11s-seg.pt)
+- [YOLOe-v11-S](https://huggingface.co/jameslahm/yoloe/blob/main/yoloe-11s-seg.pt)
+- [YOLO11n](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt)
 
 ---
 
@@ -88,10 +97,20 @@ Same as `/stream-frame`, but uses the text-prompt model instead.
 
 ---
 
+### `POST /stream-frame-engine`
+Same as `/stream-frame`, but uses the tensorrt model instead.
+
+---
+
+### `POST /stream-frame-pytorch`
+Same as `/stream-frame`, but uses the pytorch model instead.
+
+---
+
 ## 🖼️ Frontend Interface
 
 Hosted at `http://localhost:8080` via `index.html`:
 
-- Select mode: `Visual Prompt` or `Text Prompt`
+- Select mode: `Visual Prompt`, `Text Prompt`, `YOLOv11 (TensorRT)` and `YOLOv11 (PyTorch)`
 - Upload image + bounding boxes or class list
 - Starts webcam + streams annotated results

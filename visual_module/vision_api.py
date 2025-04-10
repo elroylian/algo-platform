@@ -1,5 +1,3 @@
-# app.py
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import numpy as np
@@ -8,31 +6,33 @@ import json
 from PIL import Image
 from io import BytesIO
 import base64
+
 from yoloe_visual_module import create_model_with_visual_prompt, predict_with_model
 from yoloe_text_module import create_model_with_text_prompt, predict_with_model as predict_text
+
+from yolo_inference import preprocess, draw_boxes, COCO_CLASSES, load_engine, allocate_buffers, do_inference, postprocess
+from yolo_pt_module import predict_with_pt_model
+from yolo_engine_module import predict_with_engine_model
 
 
 app = Flask(__name__)
 CORS(app)
-visual_model = None  # Store the model globally
-text_model = None
 
+visual_model = None
+text_model = None
 text_class_names = []
-class_names = []  # Store classes for the label dictionary
+class_names = []
 
 def read_image_from_file(file):
-    """Convert file upload to BGR NumPy array."""
     img = Image.open(file.stream).convert("RGB")
     return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
 def read_image_from_base64(b64string):
-    """Convert base64 image string to BGR NumPy array."""
     img_data = base64.b64decode(b64string)
     img = Image.open(BytesIO(img_data)).convert("RGB")
     return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
 def encode_image_to_base64(img_np):
-    """Encode BGR NumPy array to base64 string."""
     _, buffer = cv2.imencode('.jpg', img_np)
     return base64.b64encode(buffer).decode("utf-8")
 
@@ -109,6 +109,38 @@ def stream_frame_text():
     try:
         frame_np = read_image_from_base64(data["image_base64"])
         result = predict_text(text_model, frame_np, text_class_names)
+        result_base64 = encode_image_to_base64(result)
+
+        return jsonify({"image_base64": result_base64})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/stream-frame-engine', methods=['POST'])
+def stream_frame_engine():
+
+    data = request.get_json()
+    if "image_base64" not in data:
+        return jsonify({"error": "Missing 'image_base64' field."}), 400
+
+    try:
+        frame_np = read_image_from_base64(data["image_base64"])
+
+        results = predict_with_engine_model(frame_np)
+        result_base64 = encode_image_to_base64(results)
+
+        return jsonify({"image_base64": result_base64})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/stream-frame-pytorch', methods=['POST'])
+def stream_frame_pytorch():
+    try:
+        data = request.get_json()
+        if "image_base64" not in data:
+            return jsonify({"error": "Missing 'image_base64' field."}), 400
+
+        frame_np = read_image_from_base64(data["image_base64"])
+        result = predict_with_pt_model(frame_np)
         result_base64 = encode_image_to_base64(result)
 
         return jsonify({"image_base64": result_base64})
