@@ -64,6 +64,7 @@
     const ctx = canvas.getContext("2d");
     const promptForm = document.getElementById("promptForm");
     const normalStartBtn = document.getElementById("normalStartBtn");
+    const serverUrl = "http://127.0.0.1:5000"; // Change this to your server URL if needed
 
     let modelReady = false;
     let currentMode = "visual";
@@ -100,7 +101,7 @@
         formData.append("bboxes", bboxes);
         formData.append("classes", classes);
 
-        const res = await fetch("http://localhost:5000/set-prompt", {
+        const res = await fetch(serverUrl+"/set-prompt", {
           method: "POST",
           body: formData
         });
@@ -113,7 +114,7 @@
           alert("Error setting visual prompt: " + data.error);
         }
       } else {
-        const res = await fetch("http://localhost:5000/set-text-prompt", {
+        const res = await fetch(serverUrl+"/set-text-prompt", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ classes: JSON.parse(classes) })
@@ -157,13 +158,13 @@
 
       let endpoint = "";
       if (currentMode === "visual") {
-        endpoint = "http://localhost:5000/stream-frame";
+        endpoint = serverUrl+"/stream-frame";
       } else if (currentMode === "text") {
-        endpoint = "http://localhost:5000/stream-frame-text";
+        endpoint = serverUrl+"/stream-frame-text";
       } else if (currentMode === "normal") {
-        endpoint = "http://localhost:5000/stream-frame-engine";
+        endpoint = serverUrl+"/stream-frame-engine";
       } else if (currentMode === "pytorch") {
-        endpoint = "http://localhost:5000/stream-frame-pytorch";
+        endpoint = serverUrl+"/stream-frame-pytorch";
       }
 
       try {
