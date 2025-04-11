@@ -1,5 +1,5 @@
 # Converting pt to engine model
 
-from ultralytics import YOLOE
-model = YOLOE("yolo11n.pt")  # your model path
-model.export(format="engine", opset=14, simplify=True, dynamic=False, device=0)
+from ultralytics import YOLO
+model = YOLO("yolo11n.pt", task="detect")  # your model path
+model.export(format="engine", opset=19, simplify=True, dynamic=False, device=0, verbose = True, half=True)

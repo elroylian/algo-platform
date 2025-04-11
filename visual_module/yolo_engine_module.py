@@ -8,7 +8,7 @@ except Exception as e:
 
 def predict_with_engine_model(frame_np):
     # Run inference using the model (handles resizing and preprocessing)
-    results = model(frame_np)
+    results = model(frame_np, device=0)
 
     # Plot the boxes directly onto the frame
     result_img = results[0].plot()  # returns a BGR numpy array with boxes drawn
